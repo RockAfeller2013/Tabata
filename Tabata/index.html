@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#00FFFF"> <!-- Theme color for PWA -->
+    <title>Bell Curve Tabata / HIIT Timer</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="shortcut icon" type="image/png" href="favicon.png"/> <!-- Favicon -->
+    <link rel="manifest" href="manifest.json"> <!-- Web App Manifest -->
+    <style>
+        /* Your existing CSS */
+        body {
+            font-family: 'Oswald', 'Helvetica Neue', arial;
+            font-weight: 100;
+            text-align: center;
+            text-transform: uppercase;
+            color: rgb(0, 0, 0);
+            background: cyan;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        #app {
+            background: rgba(0, 0, 0, .1);
+            width: 90%; /* Adjusted for better responsiveness */
+            max-width: 800px; /* Limit maximum width */
+            margin-top: 20px;
+            padding-bottom: 50px;
+            border-radius: 20px;
+            box-shadow: 10px 10px rgba(45, 45, 44, 0.3);
+            margin-bottom: 20px; /* Add margin to allow scrolling */
+            position: relative; /* Added for version number positioning */
+        }
+
+        /* Version number styling */
+        .version {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            font-size: 0.8rem;
+            color: rgba(0, 0, 0, 0.5); /* Semi-transparent text */
+            z-index: 1000; /* Ensure it's above other elements */
+        }
+
+        #gifContainer {
+            position: relative;
+            width: 100%;
+            padding-top: 100%; /* Maintain a square aspect ratio */
+            margin: 0 auto;
+        }
+
+        #gif {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            border-radius: 50%;
+            display: none; /* Initially hidden */
+            object-fit: cover; /* Ensure the GIF fits the container */
+        }
+
+        .base-timer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+        }
+
+        .base-timer__svg {
+            transform: scaleX(-1);
+        }
+
+        .base-timer__circle {
+            fill: none;
+            stroke: none;
+        }
+
+        .base-timer__path-elapsed {
+            stroke-width: 7px;
+            stroke: grey;
+        }
+
+        .base-timer__path-remaining {
+            stroke-width: 7px;
+            stroke-linecap: round;
+            transform: rotate(90deg);
+            transform-origin: center;
+            transition: 1s linear all;
+            fill-rule: nonzero;
+            stroke: currentColor;
+        }
+
+        .base-timer__path-remaining.green {
+            color: rgb(65, 184, 131);
+        }
+
+        .base-timer__path-remaining.orange {
+            color: orange;
+        }
+
+        .base-timer__path-remaining.red {
+            color: red;
+        }
+
+        .base-timer__label {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10vw; /* Responsive font size */
+            color: white; /* Make the countdown number white */
+        }
+
+        /* Progress indicator styling */
+        .progress-indicator {
+            position: absolute;
+            top: 80%; /* Positioned below the countdown text */
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 4vw; /* Responsive font size */
+            z-index: 3; /* Ensure it's above the GIF but below the countdown text */
+            color: white; /* Match the text color */
+            font-weight: bold; /* Make it more visible */
+        }
+
+        /* Round Picker Styles */
+        .number-picker {
+            display: flex;
+            align-items: center;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            width: 300px; /* Width of the picker */
+            gap: 10px;
+            padding: 10px;
+            scrollbar-width: none; /* Hide scrollbar on Firefox */
+            border: 2px solid #ccc; /* Border for the picker */
+            border-radius: 10px; /* Rounded corners */
+            background-color: #fff; /* White background */
+            margin: 20px auto; /* Center the picker */
+        }
+
+        .number-picker::-webkit-scrollbar {
+            display: none; /* Hide scrollbar on WebKit browsers */
+        }
+
+        .number {
+            flex: 0 0 auto;
+            font-size: 1.0rem;
+            text-align: center;
+            opacity: 0.5;
+            transition: transform 0.3s, opacity 0.3s;
+            scroll-snap-align: center;
+            width: 50px; /* Adjust to control spacing */
+        }
+
+        .number.active {
+            opacity: 1;
+            transform: scale(1.5);
+            font-weight: bold;
+        }
+
+        .number.dummy {
+            opacity: 0; /* Invisible dummy elements */
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="container text-center">
+        <!-- Version number inside the canvas area -->
+        <div class="version">v3.0</div>
+
+        <div id="timer">
+            <h1 id="status" class="mt-3">Rest</h1>
+            <div class="row justify-content-center">
+                <div class="col-12 col-md-8 col-lg-6">
+                    <div id="gifContainer">
+                        <img id="gif" src="" alt="Round GIF" class="img-fluid">
+                        <div class="base-timer">
+                            <svg class="base-timer__svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                                <g class="base-timer__circle">
+                                    <circle class="base-timer__path-elapsed" cx="50" cy="50" r="45"></circle>
+                                    <path
+                                        id="base-timer-path-remaining"
+                                        stroke-dasharray="283"
+                                        class="base-timer__path-remaining green"
+                                        d="
+                                            M 50, 50
+                                            m -45, 0
+                                            a 45,45 0 1,0 90,0
+                                            a 45,45 0 1,0 -90,0
+                                        ">
+                                    </path>
+                                </g>
+                            </svg>
+                            <span id="base-timer-label" class="base-timer__label">20</span>
+                            <!-- Progress indicator -->
+                            <div class="progress-indicator">
+                                <span id="completedRounds">1</span> / <span id="totalRounds">7</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="controls mt-3">
+                <label for="duration" class="form-label">Duration (minutes):</label>
+                <input type="range" id="duration" class="form-range" min="1" max="10" value="5">
+                <span id="durationValue">5</span> mins
+            </div>
+            <div class="controls mt-3">
+                <label for="roundsInput" class="form-label">Number of Rounds:</label>
+                <!-- Replace the input with the round picker -->
+                <div class="number-picker" id="number-picker"></div>
+            </div>
+            <div class="controls mt-3">
+                <button id="start" class="btn btn-primary">Start</button>
+                <button id="stop" class="btn btn-danger">Stop</button>
+                <button id="reset" class="btn btn-secondary">Reset</button>
+            </div>
+        </div>
+        <div id="rounds" class="mt-4">
+            <h2></h2> <!-- Removed the word "Rounds" -->
+        </div>
+    </div>
+
+    <!-- Add audio elements for Go, Rest, and Well Done sounds -->
+    <audio id="goSound" src="go.mp3"></audio>
+    <audio id="restSound" src="rest.mp3"></audio>
+    <audio id="beepGo" src="beep-go.mp3"></audio>
+    <audio id="beepRest" src="beep-rest.mp3"></audio>
+    <audio id="wellDoneSound" src="welldone.mp3"></audio>
+    <audio id="getReadySound" src="getready.mp3"></audio> <!-- New audio for "Get Ready" -->
+
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.min.js"></script>
+
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/apps/tabata/service-worker.js', {
+            scope: '/apps/tabata/'
+                }).then((registration) => {
+                    console.log('Service Worker registered with scope:', registration.scope);
+                }).catch((error) => {
+                     console.log('Service Worker registration failed:', error);
+                });
+        }
+    </script>
+
+    <!-- Your existing JavaScript -->
+    <script>
+        window.onload = function () {
+            // Preload all media files
+            const workGifs = [
+                "https://www.detectx.com.au/apps/tabata/gif/gif1.gif",
+                "https://www.detectx.com.au/apps/tabata/gif/gif2.gif",
+                "https://www.detectx.com.au/apps/tabata/gif/gif3.gif",
+                "https://www.detectx.com.au/apps/tabata/gif/gif4.gif",
+                "https://www.detectx.com.au/apps/tabata/gif/gif5.gif",
+                "https://www.detectx.com.au/apps/tabata/gif/gif6.gif",
+                "https://www.detectx.com.au/apps/tabata/gif/gif7.gif",
+                "https://www.detectx.com.au/apps/tabata/gif/gif9.gif",
+                "https://www.detectx.com.au/apps/tabata/gif/gif10.gif",
+                "https://www.detectx.com.au/apps/tabata/gif8.gif",
+                "https://www.detectx.com.au/apps/tabata/gif/gif11.gif"
+            ];
+            const restGif = "https://www.detectx.com.au/apps/tabata/float.gif"; // GIF for rest rounds
+            const wellDoneGif = "https://www.detectx.com.au/apps/tabata/welldone.gif"; // GIF for completion
+
+            // Preload GIFs
+            const preloadedGifs = [];
+            workGifs.forEach(gifUrl => {
+                const img = new Image();
+                img.src = gifUrl;
+                preloadedGifs.push(img);
+            });
+
+            const restImg = new Image();
+            restImg.src = restGif;
+            preloadedGifs.push(restImg);
+
+            const wellDoneImg = new Image();
+            wellDoneImg.src = wellDoneGif;
+            preloadedGifs.push(wellDoneImg);
+
+            // Preload audio files
+            const goSound = document.getElementById("goSound");
+            const restSound = document.getElementById("restSound");
+            const beepGo = document.getElementById("beepGo");
+            const beepRest = document.getElementById("beepRest");
+            const wellDoneSound = document.getElementById("wellDoneSound");
+            const getReadySound = document.getElementById("getReadySound");
+
+            // Preload audio by setting preload attribute
+            goSound.preload = "auto";
+            restSound.preload = "auto";
+            beepGo.preload = "auto";
+            beepRest.preload = "auto";
+            wellDoneSound.preload = "auto";
+            getReadySound.preload = "auto";
+
+            // Rest of your existing script
+            let totalDuration = 300; // Default to 5 minutes (300 seconds)
+            let rounds = 7; // Default number of rounds
+            const maxWork = 40;
+            const minWork = 20;
+            const maxRest = 30;
+            const minRest = 10;
+
+            let currentRound = 1; // Start rounds at 1 instead of 0
+            let isWorking = false;
+            let isGetReady = false; // Track "Get Ready" phase
+            let interval;
+            let getReadyInterval; // Interval for "Get Ready" countdown
+            let seconds = 0;
+
+            let workTimes = [];
+            let restTimes = [];
+
+            const durationInput = document.getElementById("duration");
+            const durationValue = document.getElementById("durationValue");
+            const startButton = document.getElementById("start");
+            const stopButton = document.getElementById("stop");
+            const resetButton = document.getElementById("reset");
+            const statusHeader = document.getElementById("status");
+            const secondsSpan = document.getElementById("base-timer-label");
+            const completedRounds = document.getElementById("completedRounds");
+            const totalRounds = document.getElementById("totalRounds");
+            const gifElement = document.getElementById("gif");
+
+            // Wake Lock
+            let wakeLock = null;
+
+            // Function to request a wake lock
+            async function requestWakeLock() {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('Wake Lock is active');
+                } catch (err) {
+                    console.error('Failed to activate Wake Lock:', err);
+                }
+            }
+
+            // Function to release the wake lock
+            function releaseWakeLock() {
+                if (wakeLock) {
+                    wakeLock.release().then(() => {
+                        wakeLock = null;
+                        console.log('Wake Lock released');
+                    });
+                }
+            }
+
+            // Update duration when slider changes
+            durationInput.oninput = function () {
+                totalDuration = this.value * 60; // Convert minutes to seconds
+                durationValue.innerText = this.value;
+                calculateWorkAndRestTimes();
+            };
+
+            // Initialize the round picker
+            const numberPicker = document.getElementById('number-picker');
+            const range = 20; // Numbers 1 to 20
+            const defaultNumber = 7; // Default selected number
+
+            // Create number elements with dummy elements
+            function initializeNumbers() {
+                // Add two dummy elements at the start
+                for (let i = 0; i < 2; i++) {
+                    const dummyStart = document.createElement('div');
+                    dummyStart.textContent = '**';
+                    dummyStart.classList.add('number', 'dummy');
+                    numberPicker.appendChild(dummyStart);
+                }
+
+                // Add numbers 1 to 20
+                for (let i = 1; i <= range; i++) {
+                    const numberElement = document.createElement('div');
+                    numberElement.textContent = i;
+                    numberElement.classList.add('number');
+                    numberPicker.appendChild(numberElement);
+                }
+
+                // Add two dummy elements at the end
+                for (let i = 0; i < 2; i++) {
+                    const dummyEnd = document.createElement('div');
+                    dummyEnd.textContent = '**';
+                    dummyEnd.classList.add('number', 'dummy');
+                    numberPicker.appendChild(dummyEnd);
+                }
+
+                // Scroll to the default number
+                setTimeout(() => {
+                    const defaultIndex = defaultNumber + 2; // Account for two dummy elements at the start
+                    const defaultElement = numberPicker.children[defaultIndex];
+                    defaultElement.classList.add('active');
+                    defaultElement.scrollIntoView({ behavior: 'smooth', inline: 'center' });
+                }, 100);
+            }
+
+            // Highlight the closest number when scrolling stops
+            function handleScroll() {
+                let closest = null;
+                let minDistance = Infinity;
+
+                // Find the closest number to the center
+                [...numberPicker.children].forEach((child) => {
+                    const rect = child.getBoundingClientRect();
+                    const distance = Math.abs(rect.left + rect.width / 2 - window.innerWidth / 2);
+                    if (distance < minDistance) {
+                        closest = child;
+                        minDistance = distance;
+                    }
+                });
+
+                // Update active class
+                [...numberPicker.children].forEach((child) => child.classList.remove('active'));
+                if (closest && !closest.classList.contains('dummy')) {
+                    closest.classList.add('active');
+                    closest.scrollIntoView({ behavior: 'smooth', inline: 'center' });
+
+                    // Update the number of rounds
+                    rounds = parseInt(closest.textContent);
+                    totalRounds.innerText = rounds;
+                    calculateWorkAndRestTimes();
+                }
+            }
+
+            // Initialize numbers and bind events
+            initializeNumbers();
+            numberPicker.addEventListener('scroll', () => {
+                clearTimeout(numberPicker.scrollTimeout);
+                numberPicker.scrollTimeout = setTimeout(handleScroll, 100);
+            });
+
+            // Calculate work and rest times based on bell curve
+            function calculateWorkAndRestTimes() {
+                const midpoint = (rounds + 1) / 2;
+                const k = Math.log(2) / Math.pow(rounds / 2, 2);
+
+                workTimes = [];
+                restTimes = [];
+                for (let i = 1; i <= rounds; i++) {
+                    const workTime = minWork + (maxWork - minWork) * Math.exp(-k * Math.pow(i - midpoint, 2));
+                    const restTime = maxRest - (maxRest - minRest) * Math.exp(-k * Math.pow(i - midpoint, 2));
+                    workTimes.push(Math.round(workTime));
+                    restTimes.push(Math.round(restTime));
+                }
+                // Adjust times to fit total duration
+                const totalWorkAndRest = workTimes.reduce((a, b) => a + b, 0) + restTimes.reduce((a, b) => a + b, 0);
+                const scaleFactor = totalDuration / totalWorkAndRest;
+                workTimes = workTimes.map(time => Math.round(time * scaleFactor));
+                restTimes = restTimes.map(time => Math.round(time * scaleFactor));
+            }
+
+            // Initialize work and rest times
+            calculateWorkAndRestTimes();
+
+            // Function to get a random work GIF
+            function getRandomWorkGif() {
+                const randomIndex = Math.floor(Math.random() * workGifs.length);
+                return workGifs[randomIndex];
+            }
+
+            // Update GIF based on the current round
+            function updateGif() {
+                if (isWorking) {
+                    gifElement.src = getRandomWorkGif(); // Show a random work GIF
+                } else {
+                    gifElement.src = restGif; // Show the rest GIF
+                }
+                gifElement.style.display = "block"; // Ensure the GIF is visible
+            }
+
+            // Function to start the "Get Ready" countdown
+            function startGetReadyCountdown() {
+                isGetReady = true; // Set "Get Ready" phase
+                let getReadySeconds = 7; // 7-second countdown
+                statusHeader.innerText = "Get Ready";
+                document.body.style.background = "#ffff80"; // Change background color for "Get Ready"
+                getReadySound.currentTime = 0; // Reset the audio to start
+                getReadySound.play().then(() => {
+                    // Start the countdown after the audio plays
+                    getReadyInterval = setInterval(() => {
+                        secondsSpan.innerText = getReadySeconds;
+                        getReadySeconds -= 1;
+
+                        if (getReadySeconds < 0) {
+                            clearInterval(getReadyInterval);
+                            isGetReady = false; // End "Get Ready" phase
+                            isWorking = true;
+                            startRound(); // Start the rounds after the countdown
+                        }
+                    }, 1000);
+                }).catch((error) => {
+                    console.error('Failed to play getReadySound:', error);
+                });
+            }
+
+            // Updated startButton.onclick function
+            startButton.onclick = function () {
+                if (!interval && !isGetReady) {
+                    // Play the "getready.mp3" sound after user interaction
+                    getReadySound.play().then(() => {
+                        requestWakeLock(); // Request wake lock
+                        startGetReadyCountdown(); // Start the "Get Ready" countdown
+                    }).catch((error) => {
+                        console.error('Failed to play getReadySound:', error);
+                    });
+                }
+            };
+
+            stopButton.onclick = function () {
+                if (isGetReady) {
+                    clearInterval(getReadyInterval); // Stop the "Get Ready" countdown
+                    isGetReady = false; // Reset "Get Ready" phase
+                }
+                clearInterval(interval); // Stop the main timer
+                interval = null;
+                statusHeader.innerText = "Rest";
+                document.body.style.background = "cyan";
+                releaseWakeLock(); // Release the wake lock when the timer stops
+            };
+
+            resetButton.onclick = function () {
+                if (isGetReady) {
+                    clearInterval(getReadyInterval); // Stop the "Get Ready" countdown
+                    isGetReady = false; // Reset "Get Ready" phase
+                }
+                clearInterval(interval); // Stop the main timer
+                interval = null;
+                isWorking = false;
+                currentRound = 1; // Reset rounds to 1
+                seconds = 0;
+                secondsSpan.innerText = seconds;
+                statusHeader.innerText = "Rest";
+                document.body.style.background = "cyan";
+                completedRounds.innerText = currentRound;
+                gifElement.style.display = "none"; // Hide the GIF on reset
+                setCircleDasharray(283); // Reset the circular timer
+                setRemainingPathColor(seconds, 20); // Reset the color
+                releaseWakeLock(); // Release the wake lock when the timer is reset
+            };
+
+            function startRound() {
+                if (currentRound > rounds) {
+                    // All rounds completed
+                    statusHeader.innerText = "Well Done!";
+                    document.body.style.background = "cyan";
+                    gifElement.src = wellDoneGif; // Set the "Well Done" GIF
+                    gifElement.style.display = "block"; // Ensure the GIF is visible
+                    wellDoneSound.currentTime = 0; // Reset the audio to start
+                    wellDoneSound.play().catch((error) => {
+                        console.error('Failed to play wellDoneSound:', error);
+                    }); // Play the "Well Done" sound
+                    clearInterval(interval);
+                    interval = null;
+                    return;
+                }
+
+                const workTime = workTimes[currentRound - 1]; // Adjust index for 1-based counting
+                const restTime = restTimes[currentRound - 1]; // Adjust index for 1-based counting
+
+                if (isWorking) {
+                    seconds = workTime;
+                    statusHeader.innerText = "Go!";
+                    document.body.style.background = "pink";
+                    goSound.currentTime = 0; // Reset the audio to start
+                    goSound.play().catch((error) => {
+                        console.error('Failed to play goSound:', error);
+                    }); // Play the "go.mp3" sound
+                } else {
+                    seconds = restTime;
+                    statusHeader.innerText = "Rest";
+                    document.body.style.background = "cyan";
+                    restSound.currentTime = 0; // Reset the audio to start
+                    restSound.play().catch((error) => {
+                        console.error('Failed to play restSound:', error);
+                    }); // Play the "rest.mp3" sound
+                }
+
+                secondsSpan.innerText = seconds;
+                interval = setInterval(countdown, 1000);
+                completedRounds.innerText = currentRound;
+                updateGif(); // Update and display the GIF
+                setCircleDasharray(283); // Initialize the circular timer
+                setRemainingPathColor(seconds, isWorking ? workTime : restTime); // Set the color based on the time
+            }
+
+            function countdown() {
+                seconds -= 1;
+                secondsSpan.innerText = seconds;
+
+                // Play the corresponding beep sound after the first second
+                if (seconds > 0) {
+                    if (isWorking) {
+                        beepGo.currentTime = 0; // Reset the audio to start
+                        beepGo.play().catch((error) => {
+                            console.error('Failed to play beepGo:', error);
+                        }); // Play the "beep-go.mp3" sound
+                    } else {
+                        beepRest.currentTime = 0; // Reset the audio to start
+                        beepRest.play().catch((error) => {
+                            console.error('Failed to play beepRest:', error);
+                        }); // Play the "beep-rest.mp3" sound
+                    }
+                }
+
+                // Update the circular timer
+                setCircleDasharray((seconds / (isWorking ? workTimes[currentRound - 1] : restTimes[currentRound - 1])) * 283);
+                setRemainingPathColor(seconds, isWorking ? workTimes[currentRound - 1] : restTimes[currentRound - 1]);
+
+                if (seconds <= 0) {
+                    clearInterval(interval);
+                    isWorking = !isWorking;
+                    if (!isWorking) {
+                        currentRound += 1;
+                    }
+                    startRound();
+                }
+            }
+
+            // Circular timer functions
+            function setCircleDasharray(dasharray) {
+                document
+                    .getElementById("base-timer-path-remaining")
+                    .setAttribute("stroke-dasharray", `${dasharray.toFixed(0)} 283`);
+            }
+
+            function setRemainingPathColor(timeLeft, totalTime) {
+                const WARNING_THRESHOLD = totalTime * 0.5;
+                const ALERT_THRESHOLD = totalTime * 0.25;
+
+                if (timeLeft <= ALERT_THRESHOLD) {
+                    document
+                        .getElementById("base-timer-path-remaining")
+                        .classList.remove("orange", "green");
+                    document
+                        .getElementById("base-timer-path-remaining")
+                        .classList.add("red");
+                } else if (timeLeft <= WARNING_THRESHOLD) {
+                    document
+                        .getElementById("base-timer-path-remaining")
+                        .classList.remove("green", "red");
+                    document
+                        .getElementById("base-timer-path-remaining")
+                        .classList.add("orange");
+                } else {
+                    document
+                        .getElementById("base-timer-path-remaining")
+                        .classList.remove("orange", "red");
+                    document
+                        .getElementById("base-timer-path-remaining")
+                        .classList.add("green");
+                }
+            }
+        };
+    </script>
+</body>
+</html>

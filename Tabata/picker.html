@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Touch Number Picker</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #f0f0f0;
+    }
+    .number-picker {
+      display: flex;
+      align-items: center;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      width: 300px; /* Width of the picker */
+      gap: 10px;
+      padding: 10px;
+      scrollbar-width: none; /* Hide scrollbar on Firefox */
+      border: 2px solid #ccc; /* Border for the picker */
+      border-radius: 10px; /* Rounded corners */
+      background-color: #fff; /* White background */
+    }
+    .number-picker::-webkit-scrollbar {
+      display: none; /* Hide scrollbar on WebKit browsers */
+    }
+    .number {
+      flex: 0 0 auto;
+      font-size: 1.5rem;
+      text-align: center;
+      opacity: 0.5;
+      transition: transform 0.3s, opacity 0.3s;
+      scroll-snap-align: center;
+      width: 50px; /* Adjust to control spacing */
+    }
+    .number.active {
+      opacity: 1;
+      transform: scale(1.5);
+      font-weight: bold;
+    }
+    .number.dummy {
+      opacity: 0; /* Invisible dummy elements */
+    }
+  </style>
+</head>
+<body>
+  <div class="number-picker" id="number-picker"></div>
+
+  <script>
+    const numberPicker = document.getElementById('number-picker');
+    const range = 20; // Numbers 1 to 20
+    const defaultNumber = 7; // Default selected number
+
+    // Create number elements with dummy elements
+    function initializeNumbers() {
+      // Add two dummy elements at the start
+      for (let i = 0; i < 2; i++) {
+        const dummyStart = document.createElement('div');
+        dummyStart.textContent = '**';
+        dummyStart.classList.add('number', 'dummy');
+        numberPicker.appendChild(dummyStart);
+      }
+
+      // Add numbers 1 to 20
+      for (let i = 1; i <= range; i++) {
+        const numberElement = document.createElement('div');
+        numberElement.textContent = i;
+        numberElement.classList.add('number');
+        numberPicker.appendChild(numberElement);
+      }
+
+      // Add two dummy elements at the end
+      for (let i = 0; i < 2; i++) {
+        const dummyEnd = document.createElement('div');
+        dummyEnd.textContent = '**';
+        dummyEnd.classList.add('number', 'dummy');
+        numberPicker.appendChild(dummyEnd);
+      }
+
+      // Scroll to the default number
+      setTimeout(() => {
+        const defaultIndex = defaultNumber + 2; // Account for two dummy elements at the start
+        const defaultElement = numberPicker.children[defaultIndex];
+        defaultElement.classList.add('active');
+        defaultElement.scrollIntoView({ behavior: 'smooth', inline: 'center' });
+      }, 100);
+    }
+
+    // Highlight the closest number when scrolling stops
+    function handleScroll() {
+      let closest = null;
+      let minDistance = Infinity;
+
+      // Find the closest number to the center
+      [...numberPicker.children].forEach((child) => {
+        const rect = child.getBoundingClientRect();
+        const distance = Math.abs(rect.left + rect.width / 2 - window.innerWidth / 2);
+        if (distance < minDistance) {
+          closest = child;
+          minDistance = distance;
+        }
+      });
+
+      // Update active class
+      [...numberPicker.children].forEach((child) => child.classList.remove('active'));
+      if (closest && !closest.classList.contains('dummy')) {
+        closest.classList.add('active');
+        closest.scrollIntoView({ behavior: 'smooth', inline: 'center' });
+      }
+    }
+
+    // Initialize numbers and bind events
+    initializeNumbers();
+    numberPicker.addEventListener('scroll', () => {
+      clearTimeout(numberPicker.scrollTimeout);
+      numberPicker.scrollTimeout = setTimeout(handleScroll, 100);
+    });
+  </script>
+</body>
+</html>
