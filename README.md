@@ -1,3 +1,5 @@
+https://www.detectx.com.au/bell-curve-tabata-hiit/
+
 Building a App using AI – Bell Curve Tabata / HIIT
 Here is my experience to build a App using Open AI and Deepseek.
 
